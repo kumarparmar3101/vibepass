@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 
 interface EventCardProps {
   event: Event;
-  variant?: 'large' | 'horizontal';
+  variant?: 'large' | 'horizontal' | 'compact';
   key?: React.Key;
 }
 
@@ -70,16 +70,29 @@ export default function EventCard({ event, variant = 'large' }: EventCardProps) 
           <MapPin className="w-3 h-3 mr-1 text-vibe-primary flex-shrink-0" />
           <span className="truncate">{event.location}</span>
         </div>
+        {event.type === 'movie' && event.language && (
+          <p className="text-[10px] text-zinc-400 truncate mt-0.5">Lang: {event.language}</p>
+        )}
         <p className="text-[10px] text-zinc-500 truncate mt-0.5">{event.genre.join(', ')}</p>
       </Link>
     );
   }
 
+  const cardClass = variant === 'compact'
+    ? 'relative aspect-[16/9] rounded-2xl overflow-hidden mb-3 shadow-xl shadow-black/40'
+    : 'relative aspect-[4/5] rounded-3xl overflow-hidden mb-4 shadow-2xl shadow-black/50';
+
+  const contentClass = variant === 'compact' ? 'absolute bottom-0 left-0 right-0 p-4 flex flex-col justify-end' : 'absolute bottom-0 left-0 right-0 p-6 flex flex-col justify-end';
+
+  const titleClass = variant === 'compact'
+    ? 'text-xl font-bold text-white mb-1 leading-tight'
+    : 'text-2xl font-bold text-white mb-2 leading-tight';
+
   return (
     <Link to={`/event/${event.id}`} className="block w-full group mb-6">
       <motion.div 
         layoutId={`event-image-${event.id}`}
-        className="relative aspect-[4/5] rounded-3xl overflow-hidden mb-4 shadow-2xl shadow-black/50"
+        className={cardClass}
       >
         {event.videoUrl ? (
           <video
@@ -100,7 +113,7 @@ export default function EventCard({ event, variant = 'large' }: EventCardProps) 
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-vibe-bg via-vibe-bg/20 to-transparent" />
         
-        <div className="absolute bottom-0 left-0 right-0 p-6 flex flex-col justify-end">
+        <div className={contentClass}>
           <div className="flex items-center space-x-2 mb-3">
             {event.videoUrl && (
               <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white bg-black/50 backdrop-blur-md rounded-full border border-white/20 flex items-center">
@@ -122,7 +135,10 @@ export default function EventCard({ event, variant = 'large' }: EventCardProps) 
               </span>
             )}
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2 leading-tight">{event.title}</h2>
+          <h2 className={titleClass}>{event.title}</h2>
+          {event.type === 'movie' && event.language && (
+            <p className="text-xs text-zinc-300 mb-2">Languages: {event.language}</p>
+          )}
           <div className="flex items-center text-sm text-zinc-300 space-x-4">
             <div className="flex items-center space-x-1">
               <MapPin className="w-4 h-4 text-vibe-primary" />

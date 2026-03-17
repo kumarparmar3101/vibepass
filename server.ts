@@ -46,6 +46,22 @@ async function startServer() {
       });
       
       const movies = response.data?.data?.movies || [];
+
+      const parseLanguages = (value: unknown): string[] => {
+        if (Array.isArray(value)) {
+          return value.map((v) => String(v).trim()).filter(Boolean);
+        }
+        if (typeof value === 'string') {
+          return value
+            .split(/[,&/|]/)
+            .map((part) => part.trim())
+            .filter(Boolean);
+        }
+        return [];
+      };
+
+      const normalizeTitle = (title: string): string =>
+        title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
       
       // Transform Paytm data to match our Event interface
       const formattedMovies = movies.map((movie: any, index: number) => {
@@ -53,6 +69,7 @@ async function startServer() {
         const date = new Date();
         date.setDate(date.getDate() + (index % 7));
         const formattedDate = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + ['10:00 AM', '1:30 PM', '4:45 PM', '8:00 PM'][index % 4];
+        const languages = parseLanguages(movie.lang);
 
         return {
           id: `paytm-${movie.id}`,
@@ -64,15 +81,43 @@ async function startServer() {
           price: 250 + (index % 3) * 50,
           rating: movie.rnr?.hasUReview ? 4.0 + (index % 10) / 10 : 4.2,
           genre: movie.grn || ['Movie'],
-          language: movie.lang || 'Hindi',
+          language: languages.length > 0 ? Array.from(new Set(languages)).join(', ') : 'Hindi',
           description: `Experience ${movie.name} in cinemas now. Duration: ${movie.duration} mins. Censor: ${movie.censor}.`,
           isTrending: index < 5,
         };
       });
 
-      if (formattedMovies.length > 0) {
-        cache.set(cacheKey, formattedMovies);
-        return res.json(formattedMovies);
+      // Deduplicate cards by movie title while preserving all available languages.
+      const dedupedMoviesMap = new Map<string, any>();
+      for (const movie of formattedMovies) {
+        const key = normalizeTitle(movie.title || '');
+        const existing = dedupedMoviesMap.get(key);
+
+        if (!existing) {
+          dedupedMoviesMap.set(key, movie);
+          continue;
+        }
+
+        const existingLanguages = String(existing.language || '')
+          .split(',')
+          .map((lang: string) => lang.trim())
+          .filter(Boolean);
+        const movieLanguages = String(movie.language || '')
+          .split(',')
+          .map((lang: string) => lang.trim())
+          .filter(Boolean);
+
+        existing.language = Array.from(new Set([...existingLanguages, ...movieLanguages])).join(', ');
+        existing.genre = Array.from(new Set([...(existing.genre || []), ...(movie.genre || [])]));
+        existing.rating = Math.max(existing.rating || 0, movie.rating || 0);
+        existing.price = Math.min(existing.price || movie.price, movie.price);
+        existing.isTrending = existing.isTrending || movie.isTrending;
+      }
+      const dedupedMovies = Array.from(dedupedMoviesMap.values());
+
+      if (dedupedMovies.length > 0) {
+        cache.set(cacheKey, dedupedMovies);
+        return res.json(dedupedMovies);
       } else {
         return res.status(404).json({ error: "No movies found for this city" });
       }

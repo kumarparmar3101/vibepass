@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Navigation, Search } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import React, { useState } from 'react';
+import { getCityFromIp, getCityName } from '../utils/geolocation';
 
 const INDIAN_CITIES = [
   'Mumbai', 'Delhi-NCR', 'Bengaluru', 'Hyderabad', 'Ahmedabad', 
@@ -41,47 +42,71 @@ export default function CitySelector({ isOpen, onClose }: CitySelectorProps) {
 
   const handleGetLocation = () => {
     setIsLocating(true);
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          try {
-            const { latitude, longitude } = position.coords;
-            const response = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
-              {
-                headers: {
-                  'Accept-Language': 'en-US,en;q=0.9',
-                  'User-Agent': 'MovieWalletApp/1.0'
-                }
-              }
-            );
-            const data = await response.json();
-            const city = data.address.city || data.address.town || data.address.village || data.address.county || data.address.state_district || 'Unknown Location';
-            
-            setLocation({
-              city,
-              coordinates: { lat: latitude, lng: longitude }
-            });
-            onClose();
-          } catch (error) {
-            console.error('Error fetching location name:', error);
-            setLocation({ city: 'Current Location', coordinates: { lat: position.coords.latitude, lng: position.coords.longitude } });
-            onClose();
-          } finally {
-            setIsLocating(false);
-          }
-        },
-        (error) => {
-          console.error('Geolocation error:', error);
-          alert('Could not detect location. Please ensure location permissions are granted.');
-          setIsLocating(false);
-        },
-        { timeout: 10000, enableHighAccuracy: true }
-      );
-    } else {
-      alert('Geolocation is not supported by your browser.');
-      setIsLocating(false);
+    if (!('geolocation' in navigator)) {
+      getCityFromIp()
+        .then((city) => {
+          setLocation({ city });
+          alert(`GPS not supported. Using network location: ${city}`);
+          onClose();
+        })
+        .catch((error) => {
+          console.error('IP location fallback failed:', error);
+          alert('Geolocation is not supported by your browser.');
+        })
+        .finally(() => setIsLocating(false));
+      return;
     }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          const city = await getCityName(latitude, longitude);
+          
+          setLocation({
+            city,
+            coordinates: { lat: latitude, lng: longitude }
+          });
+          onClose();
+        } catch (error) {
+          console.error('Error processing location:', error);
+          alert('Failed to determine city name. Using coordinates.');
+          setLocation({ 
+            city: 'Current Location', 
+            coordinates: { lat: position.coords.latitude, lng: position.coords.longitude } 
+          });
+          onClose();
+        } finally {
+          setIsLocating(false);
+        }
+      },
+      async (error) => {
+        console.error('Geolocation error:', error);
+        let msg = 'Could not detect location.';
+        if (error.code === 1) {
+          msg = 'Location permission denied. Please enable it in browser settings.';
+          alert(msg);
+          setIsLocating(false);
+          return;
+        }
+
+        if (error.code === 2) msg = 'Location unavailable. Trying network location...';
+        else if (error.code === 3) msg = 'Location request timed out. Trying network location...';
+
+        try {
+          const city = await getCityFromIp();
+          setLocation({ city });
+          alert(`${msg}\nUsing network location: ${city}`);
+          onClose();
+        } catch (fallbackError) {
+          console.error('IP location fallback failed:', fallbackError);
+          alert(msg);
+        } finally {
+          setIsLocating(false);
+        }
+      },
+      { timeout: 15000, enableHighAccuracy: true, maximumAge: 0 }
+    );
   };
 
   const handleCitySelect = (city: string) => {

@@ -25,6 +25,7 @@ export default function CategoryPage() {
     date: '',
     genre: '',
     location: '',
+    language: '',
   });
   const [tmdbMovies, setTmdbMovies] = useState<Event[]>([]);
   const [isLoadingMovies, setIsLoadingMovies] = useState(false);
@@ -46,7 +47,29 @@ export default function CategoryPage() {
 
   const categoryEvents = useMemo(() => {
     if (eventType === 'movie' && tmdbMovies.length > 0) {
-      return tmdbMovies;
+      const byTitle = new Map<string, Event>();
+      for (const movie of tmdbMovies) {
+        const key = (movie.title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+        const existing = byTitle.get(key);
+        if (!existing) {
+          byTitle.set(key, movie);
+          continue;
+        }
+
+        const existingLanguages = (existing.language || '')
+          .split(',')
+          .map((lang) => lang.trim())
+          .filter(Boolean);
+        const movieLanguages = (movie.language || '')
+          .split(',')
+          .map((lang) => lang.trim())
+          .filter(Boolean);
+
+        existing.language = Array.from(new Set([...existingLanguages, ...movieLanguages])).join(', ');
+        existing.genre = Array.from(new Set([...(existing.genre || []), ...(movie.genre || [])]));
+      }
+
+      return Array.from(byTitle.values());
     }
     return events.filter((e) => e.type === eventType);
   }, [events, eventType, tmdbMovies]);
@@ -66,12 +89,27 @@ export default function CategoryPage() {
     return Array.from(new Set(locations)).filter(Boolean);
   }, [categoryEvents]);
 
+  const uniqueLanguages = useMemo(() => {
+    const languages = categoryEvents.flatMap((e) =>
+      (e.language || '')
+        .split(',')
+        .map((lang) => lang.trim())
+        .filter(Boolean)
+    );
+    return Array.from(new Set(languages)).filter(Boolean);
+  }, [categoryEvents]);
+
   const filteredEvents = categoryEvents.filter((e) => {
     const matchesDate = filters.date ? e.date.includes(filters.date) : true;
     const matchesGenre = filters.genre ? e.genre.includes(filters.genre) : true;
     const matchesLocation = filters.location ? e.location === filters.location : true;
+    const eventLanguages = (e.language || '')
+      .split(',')
+      .map((lang) => lang.trim())
+      .filter(Boolean);
+    const matchesLanguage = filters.language ? eventLanguages.includes(filters.language) : true;
 
-    return matchesDate && matchesGenre && matchesLocation;
+    return matchesDate && matchesGenre && matchesLocation && matchesLanguage;
   });
 
   if (!category) {
@@ -148,11 +186,23 @@ export default function CategoryPage() {
                     <option key={l} value={l}>{l}</option>
                   ))}
                 </select>
+                {eventType === 'movie' && (
+                  <select
+                    value={filters.language}
+                    onChange={(e) => setFilters({ ...filters, language: e.target.value })}
+                    className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-vibe-primary appearance-none"
+                  >
+                    <option value="">All Languages</option>
+                    {uniqueLanguages.map((lang) => (
+                      <option key={lang} value={lang}>{lang}</option>
+                    ))}
+                  </select>
+                )}
                 
-                {(filters.date || filters.genre || filters.location) && (
+                {(filters.date || filters.genre || filters.location || filters.language) && (
                   <div className="flex justify-end pt-1">
                     <button
-                      onClick={() => setFilters({ date: '', genre: '', location: '' })}
+                      onClick={() => setFilters({ date: '', genre: '', location: '', language: '' })}
                       className="text-xs text-vibe-primary font-medium hover:underline"
                     >
                       Clear Filters
@@ -178,15 +228,15 @@ export default function CategoryPage() {
               <span className="text-xs text-zinc-500">{filteredEvents.length} found</span>
             </div>
             {filteredEvents.map((event) => (
-              <EventCard key={event.id} event={event} />
+              <EventCard key={event.id} event={event} variant={eventType === 'movie' ? 'compact' : 'large'} />
             ))}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-zinc-500">
             <p>No events found matching your filters.</p>
-            {(filters.date || filters.genre || filters.location) && (
+            {(filters.date || filters.genre || filters.location || filters.language) && (
               <button
-                onClick={() => setFilters({ date: '', genre: '', location: '' })}
+                onClick={() => setFilters({ date: '', genre: '', location: '', language: '' })}
                 className="mt-4 text-vibe-primary text-sm font-medium"
               >
                 Clear all filters
