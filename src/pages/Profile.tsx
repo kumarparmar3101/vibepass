@@ -12,10 +12,8 @@ export default function Profile() {
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) {
-      navigate('/login');
-    }
-  }, [user, navigate]);
+    // We allow guests here to see the "Log In" button
+  }, [user]);
 
   const menuItems = [
     { icon: UserIcon, label: 'Edit Profile', action: () => showToast('Edit Profile coming soon') },
@@ -41,7 +39,22 @@ export default function Profile() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-vibe-bg text-zinc-50 flex flex-col items-center justify-center p-4">
+        <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold mb-2">Guest User</h1>
+            <p className="text-zinc-400">Log in to manage your tickets and profile.</p>
+        </div>
+        <button
+            onClick={() => navigate('/login')}
+            className="bg-vibe-primary text-black font-bold py-3 px-8 rounded-xl hover:bg-vibe-primary-hover transition-colors"
+        >
+            Log In / Sign Up
+        </button>
+      </div>
+    );
+  }
 
   return (
     <motion.div

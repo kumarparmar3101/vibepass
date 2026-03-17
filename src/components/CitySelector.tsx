@@ -5,7 +5,22 @@ import React, { useState } from 'react';
 
 const INDIAN_CITIES = [
   'Mumbai', 'Delhi-NCR', 'Bengaluru', 'Hyderabad', 'Ahmedabad', 
-  'Chennai', 'Kolkata', 'Surat', 'Pune', 'Jaipur', 'Chandigarh', 'Lucknow'
+  'Chennai', 'Kolkata', 'Surat', 'Pune', 'Jaipur', 'Chandigarh', 'Lucknow',
+  'Kanpur', 'Nagpur', 'Indore', 'Thane', 'Bhopal', 'Visakhapatnam', 
+  'Pimpri-Chinchwad', 'Patna', 'Vadodara', 'Ghaziabad', 'Ludhiana', 
+  'Agra', 'Nashik', 'Faridabad', 'Meerut', 'Rajkot', 'Kalyan-Dombivli', 
+  'Vasai-Virar', 'Varanasi', 'Srinagar', 'Aurangabad', 'Dhanbad', 
+  'Amritsar', 'Navi Mumbai', 'Allahabad', 'Ranchi', 'Howrah', 'Coimbatore', 
+  'Jabalpur', 'Gwalior', 'Vijayawada', 'Jodhpur', 'Madurai', 'Raipur', 
+  'Kota', 'Guwahati', 'Solapur', 'Hubli-Dharwad', 'Mysore', 'Tiruchirappalli', 
+  'Bareilly', 'Aligarh', 'Tiruppur', 'Gurgaon', 'Moradabad', 'Jalandhar', 
+  'Bhubaneswar', 'Salem', 'Warangal', 'Guntur', 'Bhiwandi', 'Saharanpur', 
+  'Gorakhpur', 'Bikaner', 'Amravati', 'Noida', 'Jamshedpur', 'Bhilai', 
+  'Cuttack', 'Firozabad', 'Kochi', 'Bhavnagar', 'Dehradun', 'Durgapur', 
+  'Asansol', 'Nanded', 'Kolhapur', 'Ajmer', 'Gulbarga', 'Jamnagar', 
+  'Ujjain', 'Loni', 'Siliguri', 'Jhansi', 'Ulhasnagar', 'Jammu', 
+  'Sangli-Miraj & Kupwad', 'Mangalore', 'Erode', 'Belgaum', 'Ambattur', 
+  'Tirunelveli', 'Malegaon', 'Gaya', 'Jalgaon', 'Udaipur', 'Maheshtala'
 ];
 
 interface CitySelectorProps {
@@ -17,6 +32,12 @@ export default function CitySelector({ isOpen, onClose }: CitySelectorProps) {
   const { location, setLocation } = useStore();
   const [isLocating, setIsLocating] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  const filteredCities = searchQuery.trim() === '' 
+    ? [] 
+    : INDIAN_CITIES.filter(city => 
+        city.toLowerCase().includes(searchQuery.toLowerCase())
+      );
 
   const handleGetLocation = () => {
     setIsLocating(true);
@@ -112,15 +133,29 @@ export default function CitySelector({ isOpen, onClose }: CitySelectorProps) {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white placeholder:text-zinc-500 focus:outline-none focus:border-vibe-primary/50 transition-colors"
                 />
-                {searchQuery.trim() && (
-                  <button
-                    type="submit"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-vibe-primary text-black text-xs font-bold px-3 py-1.5 rounded-lg"
-                  >
-                    Search
-                  </button>
-                )}
               </form>
+
+              {searchQuery.trim() !== '' && (
+                <div className="mb-6">
+                  {filteredCities.length > 0 ? (
+                    <div className="bg-white/5 rounded-xl border border-white/10 overflow-hidden">
+                      {filteredCities.map((city) => (
+                        <button
+                          key={city}
+                          onClick={() => handleCitySelect(city)}
+                          className="w-full text-left px-4 py-3 text-sm text-zinc-300 hover:bg-white/10 hover:text-white transition-colors border-b border-white/5 last:border-0"
+                        >
+                          {city}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-zinc-500 text-sm">
+                      No cities found matching "{searchQuery}"
+                    </div>
+                  )}
+                </div>
+              )}
 
               <button
                 onClick={handleGetLocation}
