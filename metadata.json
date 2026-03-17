@@ -1,0 +1,5 @@
+{
+  "name": "VibePass",
+  "description": "A high-performance, visually immersive application for discovery and booking of movies, live events, concerts, and social gatherings.",
+  "requestFramePermissions": ["geolocation"]
+}

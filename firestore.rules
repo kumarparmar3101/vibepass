@@ -1,0 +1,125 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required, immutable) - Firebase Auth UID
+    //   - name: string (required, max 100 chars) - User's display name
+    //   - email: string (required, email format) - User's email address
+    //   - avatarUrl: string (optional, max 500 chars) - URL to user's profile picture
+    //   - city: string (optional, max 100 chars) - User's selected city for events
+    //   - isOnboarded: boolean (optional) - Whether the user has completed onboarding
+    //   - createdAt: timestamp (required, immutable) - When the user account was created
+    //
+    // Collection: orders
+    // Document ID: auto-generated
+    // Fields:
+    //   - userId: string (required, immutable) - Firebase Auth UID
+    //   - eventId: string (required, immutable) - ID of the event/movie
+    //   - seats: list of strings (required, immutable) - Selected seats
+    //   - totalAmount: number (required, immutable) - Total amount paid
+    //   - ticketPrice: number (required, immutable) - Price of tickets
+    //   - convenienceFee: number (required, immutable) - Convenience fee
+    //   - donation: number (required, immutable) - Donation amount
+    //   - status: string (required) - Order status (e.g., 'confirmed')
+    //   - paymentMethod: string (required, immutable) - Payment method used
+    //   - createdAt: timestamp (required, immutable) - When the order was created
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    // Check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Check if user owns the resource (for user-owned documents)
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Verify UID hasn't been tampered with on create
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+    
+    // Ensure uid field is not modified on update
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+    }
+    
+    // Validate email format
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+    
+    // Validate optional string (if present, must be string and within length)
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is string &&
+              request.resource.data[field].size() >= minLen &&
+              request.resource.data[field].size() <= maxLen);
+    }
+    
+    // Validate that the document hasn't changed in the fields that are not allowed to be changed
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+    
+    // Validate User document
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'email', 'createdAt']) &&
+             data.keys().hasOnly(['uid', 'name', 'email', 'avatarUrl', 'city', 'isOnboarded', 'createdAt']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             isValidEmail(data.email) &&
+             data.createdAt is timestamp &&
+             isValidOptionalString('avatarUrl', 0, 500) &&
+             isValidOptionalString('city', 0, 100) &&
+             (!('isOnboarded' in data) || data.isOnboarded is bool);
+    }
+
+    // Validate Order document
+    function isValidOrder(data) {
+      return data.keys().hasAll(['userId', 'eventId', 'seats', 'totalAmount', 'ticketPrice', 'convenienceFee', 'donation', 'status', 'paymentMethod', 'createdAt']) &&
+             data.keys().hasOnly(['userId', 'eventId', 'seats', 'totalAmount', 'ticketPrice', 'convenienceFee', 'donation', 'status', 'paymentMethod', 'createdAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128 &&
+             data.eventId is string && data.eventId.size() > 0 && data.eventId.size() <= 128 &&
+             data.seats is list && data.seats.size() > 0 && data.seats.size() <= 50 &&
+             data.totalAmount is number && data.totalAmount >= 0 &&
+             data.ticketPrice is number && data.ticketPrice >= 0 &&
+             data.convenienceFee is number && data.convenienceFee >= 0 &&
+             data.donation is number && data.donation >= 0 &&
+             data.status is string && data.status in ['confirmed', 'pending', 'cancelled', 'failed'] &&
+             data.paymentMethod is string && data.paymentMethod.size() > 0 && data.paymentMethod.size() <= 50 &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && uidUnchanged();
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && uidNotModified() && areImmutableFieldsUnchanged(['createdAt']);
+      allow delete: if isOwner(userId);
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(request.resource.data.userId) && isValidOrder(request.resource.data);
+      allow update: if isOwner(resource.data.userId) && isOwner(request.resource.data.userId) && isValidOrder(request.resource.data) && areImmutableFieldsUnchanged(['userId', 'eventId', 'seats', 'totalAmount', 'ticketPrice', 'convenienceFee', 'donation', 'paymentMethod', 'createdAt']);
+      allow delete: if false; // Orders should not be deleted
+    }
+  }
+}
