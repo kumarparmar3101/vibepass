@@ -1,5 +1,5 @@
 import { mockEvents, Event } from '../data/mockData';
-import { Share2, CalendarPlus, Download, Navigation, Car, Popcorn, Star, Ticket as TicketIcon, Clock, MapPin, QrCode, X } from 'lucide-react';
+import { Share2, CalendarPlus, Download, Navigation, Car, Popcorn, Star, Ticket as TicketIcon, Clock, MapPin, QrCode, X, Instagram } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
@@ -7,6 +7,8 @@ import { db, auth } from '../firebase';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { fetchMovieDetails } from '../services/tmdb';
 import { useStore } from '../store/useStore';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 enum OperationType {
   CREATE = 'create',
@@ -101,6 +103,7 @@ const CountdownTimer = ({ targetDate }: { targetDate: string }) => {
 
 const TicketCard = ({ order }: { order: any; key?: string }) => {
   const [showQR, setShowQR] = useState(false);
+  const navigate = useNavigate();
   const event = order.eventDetails;
 
   if (!event) return null;
@@ -111,6 +114,9 @@ const TicketCard = ({ order }: { order: any; key?: string }) => {
   const screen = 'Screen 3';
   const distance = '2.4 km';
   const hasParking = true;
+
+  // Mock claim status - in a real app, fetch this from ugc_claims
+  const claimStatus = order.claimStatus || 'eligible'; // 'eligible', 'pending', 'approved', 'rejected'
 
   return (
     <>
@@ -179,6 +185,37 @@ const TicketCard = ({ order }: { order: any; key?: string }) => {
 
           {/* Bottom Section: Actions & QR */}
           <div className="p-5 pt-6 bg-zinc-900/50 backdrop-blur-sm">
+            {claimStatus === 'eligible' && (
+              <button 
+                onClick={() => navigate(`/claim-cashback/${order.id}`)}
+                className="w-full py-3 mb-4 bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-pink-500/20"
+              >
+                <Instagram className="w-5 h-5" />
+                Claim ₹150 Cashback
+              </button>
+            )}
+            
+            {claimStatus !== 'eligible' && (
+              <button 
+                onClick={() => navigate(`/claim-cashback/${order.id}`)}
+                className={`w-full py-3 mb-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-opacity ${
+                  claimStatus === 'approved' || claimStatus === 'paid' 
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                    : claimStatus === 'rejected'
+                    ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                    : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                }`}
+              >
+                {claimStatus === 'approved' || claimStatus === 'paid' ? (
+                  <>Cashback Approved!</>
+                ) : claimStatus === 'rejected' ? (
+                  <>Cashback Rejected</>
+                ) : (
+                  <>Cashback Verifying...</>
+                )}
+              </button>
+            )}
+            
             <button 
               onClick={() => setShowQR(true)}
               className="w-full py-3 bg-white text-black rounded-xl font-bold flex items-center justify-center gap-2 mb-4 hover:bg-zinc-200 transition-colors"
@@ -332,6 +369,15 @@ export default function Wallet() {
         const querySnapshot = await getDocs(q);
         const fetchedOrders: any[] = [];
         
+        // Fetch claims for the user
+        let userClaims: any[] = [];
+        try {
+          const claimsRes = await axios.get(`/api/ugc/users/${user.id}/claims`);
+          userClaims = claimsRes.data || [];
+        } catch (err) {
+          console.error("Failed to fetch claims", err);
+        }
+
         for (const doc of querySnapshot.docs) {
           const data = doc.data();
           let eventDetails = null;
@@ -352,10 +398,15 @@ export default function Wallet() {
             eventDetails = events.find((e) => e.id === movieId);
           }
 
+          // Find the latest claim for this order
+          const orderClaims = userClaims.filter(c => c.orderId === doc.id);
+          const latestClaim = orderClaims.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
           fetchedOrders.push({
             id: doc.id,
             ...data,
-            eventDetails
+            eventDetails,
+            claimStatus: latestClaim ? latestClaim.status : 'eligible'
           });
         }
         

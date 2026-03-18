@@ -5,94 +5,179 @@
       "description": "User profile and settings",
       "type": "object",
       "properties": {
-        "uid": {
-          "type": "string",
-          "description": "Firebase Auth UID"
-        },
-        "name": {
-          "type": "string",
-          "description": "User's display name"
-        },
-        "email": {
-          "type": "string",
-          "format": "email",
-          "description": "User's email address"
-        },
-        "avatarUrl": {
-          "type": "string",
-          "description": "URL to user's profile picture"
-        },
-        "city": {
-          "type": "string",
-          "description": "User's selected city for events"
-        },
-        "isOnboarded": {
-          "type": "boolean",
-          "description": "Whether the user has completed onboarding"
-        },
-        "createdAt": {
-          "type": "timestamp",
-          "description": "When the user account was created"
-        }
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "User's display name" },
+        "email": { "type": "string", "format": "email", "description": "User's email address" },
+        "phone": { "type": "string", "description": "User's phone number" },
+        "avatarUrl": { "type": "string", "description": "URL to user's profile picture" },
+        "city": { "type": "string", "description": "User's selected city for events" },
+        "dob": { "type": "string", "description": "Date of birth" },
+        "tier": { "type": "string", "enum": ["Standard", "Premium", "VIP"], "description": "Membership tier" },
+        "role": { "type": "string", "enum": ["user", "organizer", "admin"], "description": "User role" },
+        "loyaltyPoints": { "type": "number", "description": "Loyalty points balance" },
+        "eventsCount": { "type": "number", "description": "Number of events booked" },
+        "moviesCount": { "type": "number", "description": "Number of movies booked" },
+        "isOnboarded": { "type": "boolean", "description": "Whether the user has completed onboarding" },
+        "createdAt": { "type": "timestamp", "description": "When the user account was created" }
       },
       "required": ["uid", "name", "email", "createdAt"]
+    },
+    "UserSettings": {
+      "title": "UserSettings",
+      "description": "User preferences and settings",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "notifications": { "type": "object", "description": "Notification preferences" },
+        "privacy": { "type": "object", "description": "Privacy settings" },
+        "language": { "type": "string", "description": "Preferred language" },
+        "timezone": { "type": "string", "description": "Preferred timezone" },
+        "updatedAt": { "type": "timestamp", "description": "When settings were last updated" }
+      },
+      "required": ["userId", "updatedAt"]
+    },
+    "Event": {
+      "title": "Event",
+      "description": "Event created by an organizer",
+      "type": "object",
+      "properties": {
+        "organizerId": { "type": "string", "description": "UID of the organizer" },
+        "title": { "type": "string", "description": "Event title" },
+        "description": { "type": "string", "description": "Event description" },
+        "date": { "type": "string", "description": "Event date and time" },
+        "venue": { "type": "string", "description": "Event venue" },
+        "posterUrl": { "type": "string", "description": "URL to event poster" },
+        "category": { "type": "string", "description": "Event category" },
+        "status": { "type": "string", "enum": ["Draft", "Live", "Sold Out", "Past"], "description": "Event status" },
+        "ticketTiers": { "type": "array", "description": "Ticket pricing tiers" },
+        "createdAt": { "type": "timestamp", "description": "When the event was created" }
+      },
+      "required": ["organizerId", "title", "date", "venue", "status", "createdAt"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Ticket booking order",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of the user who made the order" },
+        "eventId": { "type": "string", "description": "ID of the event/movie" },
+        "seats": { "type": "array", "items": { "type": "string" }, "description": "Selected seats" },
+        "totalAmount": { "type": "number", "description": "Total amount paid" },
+        "status": { "type": "string", "enum": ["Success", "Failed", "Refunded"], "description": "Order status" },
+        "paymentMethodId": { "type": "string", "description": "Payment method used" },
+        "createdAt": { "type": "timestamp", "description": "When the order was created" }
+      },
+      "required": ["userId", "eventId", "seats", "totalAmount", "status", "createdAt"]
     },
     "Order": {
       "title": "Order",
       "description": "Ticket booking order",
       "type": "object",
       "properties": {
-        "userId": {
-          "type": "string",
-          "description": "Firebase Auth UID of the user who made the order"
-        },
-        "eventId": {
-          "type": "string",
-          "description": "ID of the event/movie"
-        },
-        "seats": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Selected seats"
-        },
-        "totalAmount": {
-          "type": "number",
-          "description": "Total amount paid"
-        },
-        "ticketPrice": {
-          "type": "number",
-          "description": "Price of tickets"
-        },
-        "convenienceFee": {
-          "type": "number",
-          "description": "Convenience fee"
-        },
-        "donation": {
-          "type": "number",
-          "description": "Donation amount"
-        },
-        "status": {
-          "type": "string",
-          "description": "Order status"
-        },
-        "paymentMethod": {
-          "type": "string",
-          "description": "Payment method used"
-        },
-        "createdAt": {
-          "type": "timestamp",
-          "description": "When the order was created"
-        }
+        "userId": { "type": "string", "description": "Firebase Auth UID of the user who made the order" },
+        "eventId": { "type": "string", "description": "ID of the event/movie" },
+        "seats": { "type": "array", "items": { "type": "string" }, "description": "Selected seats" },
+        "totalAmount": { "type": "number", "description": "Total amount paid" },
+        "ticketPrice": { "type": "number", "description": "Price per ticket" },
+        "convenienceFee": { "type": "number", "description": "Convenience fee" },
+        "donation": { "type": "number", "description": "Donation amount" },
+        "status": { "type": "string", "enum": ["confirmed", "cancelled", "refunded", "Success", "Failed", "Refunded"], "description": "Order status" },
+        "paymentMethod": { "type": "string", "description": "Payment method used" },
+        "paymentMethodId": { "type": "string", "description": "Payment method ID" },
+        "createdAt": { "type": "timestamp", "description": "When the order was created" }
       },
-      "required": ["userId", "eventId", "seats", "totalAmount", "ticketPrice", "convenienceFee", "donation", "status", "paymentMethod", "createdAt"]
+      "required": ["userId", "eventId", "seats", "totalAmount", "status", "createdAt"]
+    },
+    "Watchlist": {
+      "title": "Watchlist",
+      "description": "User's saved movies/events",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "movieId": { "type": "string", "description": "ID of the movie/event" },
+        "createdAt": { "type": "timestamp", "description": "When the item was added" }
+      },
+      "required": ["userId", "movieId", "createdAt"]
+    },
+    "UgcClaim": {
+      "title": "UgcClaim",
+      "description": "Instagram UGC Cashback Claim",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "orderId": { "type": "string", "description": "ID of the ticket order" },
+        "instagramHandle": { "type": "string", "description": "User's Instagram handle" },
+        "contentType": { "type": "string", "enum": ["story", "story_highlight", "feed_post", "reel"], "description": "Type of Instagram content" },
+        "postUrl": { "type": "string", "description": "URL of the post (if applicable)" },
+        "status": { "type": "string", "enum": ["pending", "verifying", "approved", "rejected", "paid"], "description": "Status of the claim" },
+        "cashbackAmount": { "type": "number", "description": "Expected cashback amount in INR" },
+        "createdAt": { "type": "timestamp", "description": "When the claim was submitted" }
+      },
+      "required": ["userId", "orderId", "instagramHandle", "contentType", "status", "cashbackAmount", "createdAt"]
+    },
+    "PaymentMethod": {
+      "title": "PaymentMethod",
+      "description": "Saved payment method",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "type": { "type": "string", "enum": ["Card", "UPI"], "description": "Payment method type" },
+        "last4": { "type": "string", "description": "Last 4 digits of card or UPI ID" },
+        "isDefault": { "type": "boolean", "description": "Is default payment method" },
+        "createdAt": { "type": "timestamp", "description": "When the method was added" }
+      },
+      "required": ["userId", "type", "last4", "isDefault", "createdAt"]
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "description": "User support ticket",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "category": { "type": "string", "description": "Ticket category" },
+        "description": { "type": "string", "description": "Issue description" },
+        "status": { "type": "string", "enum": ["Open", "In Progress", "Resolved"], "description": "Ticket status" },
+        "createdAt": { "type": "timestamp", "description": "When the ticket was created" }
+      },
+      "required": ["userId", "category", "description", "status", "createdAt"]
     }
   },
   "firestore": {
     "users/{userId}": {
-      "schema": {
-        "$ref": "#/entities/User"
-      },
+      "schema": { "$ref": "#/entities/User" },
       "description": "Stores user profiles and their settings"
+    },
+    "user_settings/{userId}": {
+      "schema": { "$ref": "#/entities/UserSettings" },
+      "description": "Stores user preferences"
+    },
+    "events/{eventId}": {
+      "schema": { "$ref": "#/entities/Event" },
+      "description": "Stores events created by organizers"
+    },
+    "bookings/{bookingId}": {
+      "schema": { "$ref": "#/entities/Booking" },
+      "description": "Stores ticket bookings"
+    },
+    "orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Stores ticket orders"
+    },
+    "watchlist/{watchlistId}": {
+      "schema": { "$ref": "#/entities/Watchlist" },
+      "description": "Stores user watchlists"
+    },
+    "ugc_claims/{claimId}": {
+      "schema": { "$ref": "#/entities/UgcClaim" },
+      "description": "Stores Instagram UGC cashback claims"
+    },
+    "payment_methods/{methodId}": {
+      "schema": { "$ref": "#/entities/PaymentMethod" },
+      "description": "Stores saved payment methods"
+    },
+    "support_tickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/SupportTicket" },
+      "description": "Stores support tickets"
     }
   }
 }

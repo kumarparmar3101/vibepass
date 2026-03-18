@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Share2, Download, MapPin, Calendar, Sun } from 'lucide-react';
+import { ArrowLeft, Share2, Download, MapPin, Calendar, Sun, Instagram, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ShareModal from '../components/ShareModal';
 import { useStore } from '../store/useStore';
@@ -131,6 +131,8 @@ export default function Ticket() {
   const displayOrderId = orderData?.id || fallbackOrderId;
   const displaySeats = orderData?.seats || (cart.eventId === id ? cart.seats : []);
 
+  const [showCashbackOffer, setShowCashbackOffer] = useState(false);
+
   // Local caching logic
   useEffect(() => {
     if (event) {
@@ -150,6 +152,12 @@ export default function Ticket() {
       if (cart.eventId === id) {
         useStore.getState().clearCart();
       }
+
+      // Show cashback offer after a short delay
+      setTimeout(() => {
+        setShowCashbackOffer(true);
+      }, 1500);
+
     } else if (!isLoading) {
       const cached = localStorage.getItem(`ticket_${id}`);
       if (cached) {
@@ -354,6 +362,84 @@ export default function Ticket() {
         onClose={() => setIsShareOpen(false)} 
         title={displayEvent.title} 
       />
+
+      {/* Cashback Bottom Sheet */}
+      <AnimatePresence>
+        {showCashbackOffer && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowCashbackOffer(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-zinc-900 rounded-t-[32px] p-6 z-50 border-t border-white/10 shadow-2xl"
+            >
+              <div className="w-12 h-1.5 bg-zinc-700 rounded-full mx-auto mb-6" />
+              
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-pink-500 via-red-500 to-yellow-500 flex items-center justify-center shrink-0">
+                  <Instagram className="w-6 h-6 text-white" />
+                </div>
+                <button 
+                  onClick={() => setShowCashbackOffer(false)}
+                  className="p-2 bg-white/5 rounded-full text-zinc-400 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <h2 className="text-2xl font-black text-white mb-2">Your ticket is confirmed! 🎬</h2>
+              <p className="text-zinc-400 mb-6">
+                Post about it on Instagram and earn <span className="text-emerald-400 font-bold">₹50–₹150 cashback</span> to your VibePass Wallet — automatically verified.
+              </p>
+
+              <div className="bg-zinc-950 rounded-2xl p-4 border border-white/5 mb-6">
+                <div className="flex justify-between items-center py-2 border-b border-white/5">
+                  <span className="text-sm text-zinc-300">Story tagged @VibePassIndia</span>
+                  <span className="text-sm font-bold text-emerald-400">₹50</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-white/5">
+                  <span className="text-sm text-zinc-300">Story + Highlight</span>
+                  <span className="text-sm font-bold text-emerald-400">₹100</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-white/5">
+                  <span className="text-sm text-zinc-300">Feed Post</span>
+                  <span className="text-sm font-bold text-emerald-400">₹100</span>
+                </div>
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-sm text-zinc-300">Reel</span>
+                  <span className="text-sm font-bold text-emerald-400">₹150</span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <button 
+                  onClick={() => {
+                    setShowCashbackOffer(false);
+                    // Could save intent here
+                  }}
+                  className="w-full py-4 bg-gradient-to-r from-pink-500 to-orange-500 text-white font-bold rounded-2xl shadow-lg shadow-pink-500/25 hover:opacity-90 transition-opacity"
+                >
+                  Claim After I Post
+                </button>
+                <button 
+                  onClick={() => setShowCashbackOffer(false)}
+                  className="w-full py-4 bg-transparent text-zinc-400 font-bold rounded-2xl hover:text-white transition-colors"
+                >
+                  Maybe Later
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

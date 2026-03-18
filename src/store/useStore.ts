@@ -7,8 +7,9 @@ export interface User {
   name: string;
   email: string;
   avatarUrl: string;
-  memberTier: 'Standard' | 'Gold' | 'Platinum';
+  memberTier: 'Standard' | 'Gold' | 'Platinum' | 'Premium' | 'VIP';
   points: number;
+  role?: 'user' | 'organizer' | 'admin';
 }
 
 export interface Location {

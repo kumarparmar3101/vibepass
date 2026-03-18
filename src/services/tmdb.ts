@@ -78,6 +78,29 @@ export const fetchTrailerFromTMDB = async (title: string): Promise<string | null
   }
 };
 
+export const fetchMovieCredits = async (title: string) => {
+  try {
+    const searchRes = await fetch(`${BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}`);
+    const searchData = await searchRes.json();
+    
+    if (searchData.results && searchData.results.length > 0) {
+      const movieId = searchData.results[0].id;
+      
+      const creditsRes = await fetch(`${BASE_URL}/movie/${movieId}/credits?api_key=${TMDB_API_KEY}`);
+      const creditsData = await creditsRes.json();
+      
+      return {
+        cast: creditsData.cast ? creditsData.cast.slice(0, 10) : [],
+        crew: creditsData.crew ? creditsData.crew.slice(0, 10) : []
+      };
+    }
+    return { cast: [], crew: [] };
+  } catch (error) {
+    console.error('Error fetching credits:', error);
+    return { cast: [], crew: [] };
+  }
+};
+
 export const fetchMovieDetails = async (id: string, city: string = 'mumbai'): Promise<Event | null> => {
   try {
     const paytmId = id.replace('paytm-', '').replace('tmdb-', '');

@@ -1,23 +1,28 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Share2, Heart, Calendar, MapPin, Clock, Star, Play, X } from 'lucide-react';
+import { ArrowLeft, Share, Heart, Calendar, MapPin, Clock, Star, Play, X } from 'lucide-react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import VenueMap from '../components/VenueMap';
 import ShareModal from '../components/ShareModal';
 import { useStore } from '../store/useStore';
-import { fetchMovieDetails, fetchTrailerFromTMDB } from '../services/tmdb';
+import { fetchMovieDetails, fetchTrailerFromTMDB, fetchMovieCredits } from '../services/tmdb';
 import { Event } from '../data/mockData';
+import { auth, db } from '../firebase';
+import { collection, query, where, getDocs, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 
 export default function EventDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { events, location } = useStore();
+  const { events, location, user } = useStore();
   const [localEvent, setLocalEvent] = useState<Event | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isPlayingTrailer, setIsPlayingTrailer] = useState(false);
   const [dynamicTrailerUrl, setDynamicTrailerUrl] = useState<string | null>(null);
+  const [credits, setCredits] = useState<{cast: any[], crew: any[]}>({ cast: [], crew: [] });
+  const [isWatchlisted, setIsWatchlisted] = useState(false);
+  const [watchlistDocId, setWatchlistDocId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,12 +45,63 @@ export default function EventDetail() {
         if (trailer) {
           setDynamicTrailerUrl(trailer);
         }
+        
+        if (eventData.type === 'movie') {
+          const movieCredits = await fetchMovieCredits(eventData.title);
+          setCredits(movieCredits);
+        }
       }
       
       setIsLoading(false);
     };
     loadEvent();
   }, [id, events, location.city]);
+
+  useEffect(() => {
+    const checkWatchlist = async () => {
+      if (!user || !id) return;
+      try {
+        const q = query(collection(db, 'watchlist'), where('userId', '==', user.id), where('movieId', '==', id));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          setIsWatchlisted(true);
+          setWatchlistDocId(snap.docs[0].id);
+        } else {
+          setIsWatchlisted(false);
+          setWatchlistDocId(null);
+        }
+      } catch (error) {
+        console.error("Error checking watchlist:", error);
+      }
+    };
+    checkWatchlist();
+  }, [user, id]);
+
+  const toggleWatchlist = async () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    if (!id) return;
+
+    try {
+      if (isWatchlisted && watchlistDocId) {
+        await deleteDoc(doc(db, 'watchlist', watchlistDocId));
+        setIsWatchlisted(false);
+        setWatchlistDocId(null);
+      } else {
+        const docRef = await addDoc(collection(db, 'watchlist'), {
+          userId: user.id,
+          movieId: id,
+          createdAt: serverTimestamp()
+        });
+        setIsWatchlisted(true);
+        setWatchlistDocId(docRef.id);
+      }
+    } catch (error) {
+      console.error("Error toggling watchlist:", error);
+    }
+  };
 
   const { scrollYProgress } = useScroll({
     container: containerRef
@@ -136,10 +192,13 @@ export default function EventDetail() {
                   onClick={() => setIsShareOpen(true)}
                   className="w-10 h-10 rounded-full bg-black/20 backdrop-blur-xl flex items-center justify-center text-white hover:bg-black/40 transition-colors"
                 >
-                  <Share2 className="w-5 h-5" />
+                  <Share className="w-5 h-5" />
                 </button>
-                <button className="w-10 h-10 rounded-full bg-black/20 backdrop-blur-xl flex items-center justify-center text-white hover:bg-black/40 transition-colors">
-                  <Heart className="w-5 h-5" />
+                <button 
+                  onClick={toggleWatchlist}
+                  className="w-10 h-10 rounded-full bg-black/20 backdrop-blur-xl flex items-center justify-center text-white hover:bg-black/40 transition-colors"
+                >
+                  <Heart className={`w-5 h-5 ${isWatchlisted ? 'fill-vibe-primary text-vibe-primary' : ''}`} />
                 </button>
               </div>
             </div>
@@ -212,6 +271,62 @@ export default function EventDetail() {
               <h3 className="text-lg font-bold mb-3">About</h3>
               <p className="text-zinc-400 leading-relaxed text-sm">{localEvent.description}</p>
             </div>
+
+            {/* Cast */}
+            {credits.cast.length > 0 && (
+              <div>
+                <h3 className="text-lg font-bold mb-3">Cast</h3>
+                <div className="flex overflow-x-auto hide-scrollbar space-x-4 pb-2">
+                  {credits.cast.map((person: any) => (
+                    <div key={person.id} className="flex-shrink-0 w-24 text-center">
+                      <div className="w-24 h-24 rounded-2xl overflow-hidden mb-2 bg-zinc-800">
+                        {person.profile_path ? (
+                          <img 
+                            src={`https://image.tmdb.org/t/p/w185${person.profile_path}`} 
+                            alt={person.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-zinc-600">
+                            No Image
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs font-semibold text-zinc-200 truncate">{person.name}</p>
+                      <p className="text-[10px] text-zinc-500 truncate">as {person.character}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Crew */}
+            {credits.crew.length > 0 && (
+              <div>
+                <h3 className="text-lg font-bold mb-3">Crew</h3>
+                <div className="flex overflow-x-auto hide-scrollbar space-x-4 pb-2">
+                  {credits.crew.map((person: any) => (
+                    <div key={person.credit_id} className="flex-shrink-0 w-24 text-center">
+                      <div className="w-24 h-24 rounded-2xl overflow-hidden mb-2 bg-zinc-800">
+                        {person.profile_path ? (
+                          <img 
+                            src={`https://image.tmdb.org/t/p/w185${person.profile_path}`} 
+                            alt={person.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-zinc-600">
+                            No Image
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs font-semibold text-zinc-200 truncate">{person.name}</p>
+                      <p className="text-[10px] text-zinc-500 truncate">{person.job}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Fixed Bottom CTA */}

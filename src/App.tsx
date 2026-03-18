@@ -23,6 +23,7 @@ import CategoryPage from './pages/CategoryPage';
 import Organizer from './pages/Organizer';
 import Onboarding from './pages/Onboarding';
 import Splash from './pages/Splash';
+import ClaimCashback from './pages/ClaimCashback';
 import { auth, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -83,31 +84,41 @@ import CinematicPreview from './pages/CinematicPreview';
 import TheatreDetail from './pages/TheatreDetail';
 import MovieShowtimes from './pages/MovieShowtimes';
 
-function AuthGuard({ children, requireAuth = false, requireOnboarded = false, publicAccess = true }: { children: React.ReactNode, requireAuth?: boolean, requireOnboarded?: boolean, publicAccess?: boolean }) {
+import EditProfile from './pages/EditProfile';
+import Settings from './pages/Settings';
+import Support from './pages/Support';
+import PaymentMethods from './pages/PaymentMethods';
+import LoyaltyRewards from './pages/LoyaltyRewards';
+import Watchlist from './pages/Watchlist';
+
+function AuthGuard({ children, requireAuth = true, requireOnboarded = true }: { children: React.ReactNode, requireAuth?: boolean, requireOnboarded?: boolean }) {
   const { isAuthenticated, isOnboarded } = useStore();
   const location = useLocation();
 
   if (requireAuth && !isAuthenticated) {
-    // If auth is strictly required and user is not authenticated, redirect to login
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // If we are authenticated, we might need to check onboarding
-  if (isAuthenticated && requireOnboarded && !isOnboarded) {
+  if (requireAuth && requireOnboarded && !isOnboarded) {
     return <Navigate to="/onboarding" state={{ from: location }} replace />;
   }
-  
-  // If we are authenticated and try to access login/onboarding pages, redirect to home
-  if (isAuthenticated && !requireAuth && !requireOnboarded) {
-      if (location.pathname === '/login' || location.pathname === '/onboarding') {
-          return <Navigate to="/" replace />;
-      }
+
+  if (requireAuth && !requireOnboarded && isOnboarded) {
+    return <Navigate to="/" replace />;
+  }
+
+  if (!requireAuth && isAuthenticated) {
+    if (isOnboarded) {
+      return <Navigate to="/" replace />;
+    } else {
+      return <Navigate to="/onboarding" replace />;
+    }
   }
 
   return <>{children}</>;
 }
 
-export function AnimatedRoutes() {
+function AnimatedRoutes() {
   const location = useLocation();
   const isCheckingAuth = useStore((state) => state.isCheckingAuth);
   const user = useStore((state) => state.user);
@@ -196,7 +207,7 @@ export function AnimatedRoutes() {
     }
   }, [isOnboarded, isCheckingAuth, isAuthenticated, user?.id]);
 
-  const hideBottomNav = ['/event', '/book', '/checkout', '/payment', '/ticket', '/login', '/organizer', '/onboarding', '/cinematic', '/theatre'].some((path) =>
+  const hideBottomNav = ['/event', '/book', '/checkout', '/payment', '/ticket', '/login', '/organizer', '/onboarding', '/cinematic', '/theatre', '/claim-cashback'].some((path) =>
     location.pathname.startsWith(path)
   );
 
@@ -216,19 +227,26 @@ export function AnimatedRoutes() {
           >
             <Routes location={location}>
               <Route path="/" element={<AuthGuard><Home /></AuthGuard>} />
-              <Route path="/login" element={<AuthGuard><Login /></AuthGuard>} />
-              <Route path="/onboarding" element={<AuthGuard><Onboarding /></AuthGuard>} />
+              <Route path="/login" element={<AuthGuard requireAuth={false}><Login /></AuthGuard>} />
+              <Route path="/onboarding" element={<AuthGuard requireOnboarded={false}><Onboarding /></AuthGuard>} />
               <Route path="/search" element={<AuthGuard><Search /></AuthGuard>} />
-              <Route path="/wallet" element={<AuthGuard requireAuth={true}><Wallet /></AuthGuard>} />
+              <Route path="/wallet" element={<AuthGuard><Wallet /></AuthGuard>} />
               <Route path="/profile" element={<AuthGuard><Profile /></AuthGuard>} />
+              <Route path="/profile/edit" element={<AuthGuard><EditProfile /></AuthGuard>} />
+              <Route path="/profile/settings" element={<AuthGuard><Settings /></AuthGuard>} />
+              <Route path="/profile/support" element={<AuthGuard><Support /></AuthGuard>} />
+              <Route path="/profile/payments" element={<AuthGuard><PaymentMethods /></AuthGuard>} />
+              <Route path="/profile/rewards" element={<AuthGuard><LoyaltyRewards /></AuthGuard>} />
+              <Route path="/profile/watchlist" element={<AuthGuard><Watchlist /></AuthGuard>} />
               <Route path="/stream" element={<AuthGuard><Stream /></AuthGuard>} />
               <Route path="/category/:id" element={<AuthGuard><CategoryPage /></AuthGuard>} />
-              <Route path="/organizer" element={<AuthGuard requireAuth={true}><Organizer /></AuthGuard>} />
+              <Route path="/organizer" element={<AuthGuard><Organizer /></AuthGuard>} />
               <Route path="/event/:id" element={<AuthGuard><EventDetail /></AuthGuard>} />
-              <Route path="/book/:id" element={<AuthGuard requireAuth={true}><Booking /></AuthGuard>} />
-              <Route path="/checkout/:id" element={<AuthGuard requireAuth={true}><Checkout /></AuthGuard>} />
-              <Route path="/payment/:id" element={<AuthGuard requireAuth={true}><Payment /></AuthGuard>} />
-              <Route path="/ticket/:id" element={<AuthGuard requireAuth={true}><Ticket /></AuthGuard>} />
+              <Route path="/book/:id" element={<AuthGuard><Booking /></AuthGuard>} />
+              <Route path="/checkout/:id" element={<AuthGuard><Checkout /></AuthGuard>} />
+              <Route path="/payment/:id" element={<AuthGuard><Payment /></AuthGuard>} />
+              <Route path="/ticket/:id" element={<AuthGuard><Ticket /></AuthGuard>} />
+              <Route path="/claim-cashback/:id" element={<AuthGuard><ClaimCashback /></AuthGuard>} />
               <Route path="/theatre/:id/:name" element={<AuthGuard><TheatreDetail /></AuthGuard>} />
               <Route path="/movie/:id/showtimes/:name" element={<AuthGuard><MovieShowtimes /></AuthGuard>} />
               <Route path="/cinematic" element={<CinematicPreview />} />

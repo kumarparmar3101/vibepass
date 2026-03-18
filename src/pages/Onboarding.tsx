@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Navigation, Check } from 'lucide-react';
 import { useStore } from '../store/useStore';
-import { getCityFromIp, getCityName } from '../utils/geolocation';
 
 const INTERESTS = [
   'Music', 'Comedy', 'Sports', 'Food', 'Technology', 'Art', 
@@ -19,51 +18,37 @@ export default function Onboarding() {
 
   const handleLocation = () => {
     setIsLocating(true);
-    if (!('geolocation' in navigator)) {
-      getCityFromIp()
-        .then((city) => setLocation({ city }))
-        .catch((error) => console.error('IP location fallback failed:', error))
-        .finally(() => {
-          setIsLocating(false);
-          setStep(2);
-        });
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const { latitude, longitude } = position.coords;
-          const city = await getCityName(latitude, longitude);
-          
-          setLocation({
-            city,
-            coordinates: { lat: latitude, lng: longitude },
-          });
-        } catch (error) {
-          console.error('Error fetching location:', error);
-          // Don't block onboarding if location fetch fails
-        } finally {
-          setIsLocating(false);
-          setStep(2);
-        }
-      },
-      async (error) => {
-        console.error('Geolocation error:', error);
-        if (error.code !== 1) {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
           try {
-            const city = await getCityFromIp();
-            setLocation({ city });
-          } catch (fallbackError) {
-            console.error('IP location fallback failed:', fallbackError);
+            const response = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}`
+            );
+            const data = await response.json();
+            const city = data.address.city || data.address.town || data.address.state || 'Unknown Location';
+            setLocation({
+              city,
+              coordinates: { lat: position.coords.latitude, lng: position.coords.longitude },
+            });
+            setIsLocating(false);
+            setStep(2);
+          } catch (error) {
+            console.error('Error fetching location:', error);
+            setIsLocating(false);
+            setStep(2);
           }
+        },
+        (error) => {
+          console.error('Geolocation error:', error);
+          setIsLocating(false);
+          setStep(2); // Proceed anyway if denied
         }
-        // Don't block user if they deny permission or lookup fails
-        setIsLocating(false);
-        setStep(2);
-      },
-      { timeout: 15000, enableHighAccuracy: true, maximumAge: 0 }
-    );
+      );
+    } else {
+      setIsLocating(false);
+      setStep(2);
+    }
   };
 
   const toggleInterest = (interest: string) => {

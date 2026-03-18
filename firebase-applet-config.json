@@ -1,8 +1,10 @@
 {
-  "apiKey": "AIzaSyCD6zBZjqX1ZqVVuPbhhQWJLWWQAhBkcYo",
-  "authDomain": "vibepass-3634d.firebaseapp.com",
-  "projectId": "vibepass-3634d",
-  "storageBucket": "vibepass-3634d.firebasestorage.app",
-  "messagingSenderId": "518549665499",
-  "appId": "1:518549665499:web:4e3778029f2babda073efe"
+  "projectId": "abiding-cedar-489606-m0",
+  "appId": "1:492516106583:web:564cd509ad2bba41165e12",
+  "apiKey": "AIzaSyCMNeMmgQCrfH9NsDMZF9sMJRyQFJzUsqU",
+  "authDomain": "abiding-cedar-489606-m0.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-811fcd74-9e6f-4f10-a193-3597ca138de1",
+  "storageBucket": "abiding-cedar-489606-m0.firebasestorage.app",
+  "messagingSenderId": "492516106583",
+  "measurementId": ""
 }

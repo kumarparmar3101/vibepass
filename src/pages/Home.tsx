@@ -6,7 +6,7 @@ import TheatreList from '../components/TheatreList';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { fetchNowPlayingMovies } from '../services/tmdb';
 import { Event } from '../data/mockData';
 
@@ -18,33 +18,7 @@ export default function Home() {
   const [isLoadingMovies, setIsLoadingMovies] = useState(true);
 
   const localMovies = events.filter((e) => e.type === 'movie');
-  const displayMovies = useMemo(() => {
-    const source = tmdbMovies.length > 0 ? tmdbMovies : localMovies;
-    const byTitle = new Map<string, Event>();
-
-    for (const movie of source) {
-      const key = (movie.title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-      const existing = byTitle.get(key);
-      if (!existing) {
-        byTitle.set(key, movie);
-        continue;
-      }
-
-      const existingLanguages = (existing.language || '')
-        .split(',')
-        .map((lang) => lang.trim())
-        .filter(Boolean);
-      const movieLanguages = (movie.language || '')
-        .split(',')
-        .map((lang) => lang.trim())
-        .filter(Boolean);
-
-      existing.language = Array.from(new Set([...existingLanguages, ...movieLanguages])).join(', ');
-      existing.genre = Array.from(new Set([...(existing.genre || []), ...(movie.genre || [])]));
-    }
-
-    return Array.from(byTitle.values());
-  }, [tmdbMovies, localMovies]);
+  const displayMovies = tmdbMovies.length > 0 ? tmdbMovies : localMovies;
 
   const trendingEvents = [
     ...events.filter((e) => e.isTrending && e.type !== 'movie'), // Keep non-movie trending events

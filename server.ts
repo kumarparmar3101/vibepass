@@ -4,12 +4,27 @@ import puppeteer from "puppeteer";
 import NodeCache from "node-cache";
 import * as cheerio from "cheerio";
 import axios from "axios";
+import { EventEmitter } from "events";
+import { GoogleGenAI } from "@google/genai";
 
 const cache = new NodeCache({ stdTTL: 86400 }); // 24 hours
 
+// Simulate Kafka
+const kafka = new EventEmitter();
+
+// Simulate Database for UGC Service
+const ugcDb = {
+  claims: new Map<string, any>(),
+  handles: new Map<string, any>(),
+  webhooks: [] as any[]
+};
+
+// Initialize Gemini for Vision Verification
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'mock-key' });
+
 async function startServer() {
   const app = express();
-  const PORT = process.env.PORT || 3000;
+  const PORT = 3000;
 
   // CORS middleware (basic)
   app.use((req, res, next) => {
@@ -46,30 +61,30 @@ async function startServer() {
       });
       
       const movies = response.data?.data?.movies || [];
-
-      const parseLanguages = (value: unknown): string[] => {
-        if (Array.isArray(value)) {
-          return value.map((v) => String(v).trim()).filter(Boolean);
-        }
-        if (typeof value === 'string') {
-          return value
-            .split(/[,&/|]/)
-            .map((part) => part.trim())
-            .filter(Boolean);
-        }
-        return [];
-      };
-
-      const normalizeTitle = (title: string): string =>
-        title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
       
+      const uniqueMoviesMap = new Map();
+      movies.forEach((movie: any) => {
+        const name = movie.name || movie.label;
+        if (name && !uniqueMoviesMap.has(name)) {
+          uniqueMoviesMap.set(name, movie);
+        }
+      });
+      const uniqueMovies = Array.from(uniqueMoviesMap.values());
+
       // Transform Paytm data to match our Event interface
-      const formattedMovies = movies.map((movie: any, index: number) => {
+      const formattedMovies = uniqueMovies.map((movie: any, index: number) => {
         // Generate a realistic date for the UI
         const date = new Date();
         date.setDate(date.getDate() + (index % 7));
         const formattedDate = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + ['10:00 AM', '1:30 PM', '4:45 PM', '8:00 PM'][index % 4];
-        const languages = parseLanguages(movie.lang);
+
+        // Generate a consistent price based on the movie ID
+        let hash = 0;
+        const idStr = movie.id.toString();
+        for (let i = 0; i < idStr.length; i++) {
+          hash = idStr.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const price = 250 + (Math.abs(hash) % 3) * 50;
 
         return {
           id: `paytm-${movie.id}`,
@@ -78,46 +93,18 @@ async function startServer() {
           imageUrl: movie.appImgPath || movie.imgPath || 'https://picsum.photos/seed/movie/800/1200',
           date: formattedDate,
           location: 'Multiple Theatres',
-          price: 250 + (index % 3) * 50,
+          price: price,
           rating: movie.rnr?.hasUReview ? 4.0 + (index % 10) / 10 : 4.2,
           genre: movie.grn || ['Movie'],
-          language: languages.length > 0 ? Array.from(new Set(languages)).join(', ') : 'Hindi',
+          language: movie.lang || 'Hindi',
           description: `Experience ${movie.name} in cinemas now. Duration: ${movie.duration} mins. Censor: ${movie.censor}.`,
           isTrending: index < 5,
         };
       });
 
-      // Deduplicate cards by movie title while preserving all available languages.
-      const dedupedMoviesMap = new Map<string, any>();
-      for (const movie of formattedMovies) {
-        const key = normalizeTitle(movie.title || '');
-        const existing = dedupedMoviesMap.get(key);
-
-        if (!existing) {
-          dedupedMoviesMap.set(key, movie);
-          continue;
-        }
-
-        const existingLanguages = String(existing.language || '')
-          .split(',')
-          .map((lang: string) => lang.trim())
-          .filter(Boolean);
-        const movieLanguages = String(movie.language || '')
-          .split(',')
-          .map((lang: string) => lang.trim())
-          .filter(Boolean);
-
-        existing.language = Array.from(new Set([...existingLanguages, ...movieLanguages])).join(', ');
-        existing.genre = Array.from(new Set([...(existing.genre || []), ...(movie.genre || [])]));
-        existing.rating = Math.max(existing.rating || 0, movie.rating || 0);
-        existing.price = Math.min(existing.price || movie.price, movie.price);
-        existing.isTrending = existing.isTrending || movie.isTrending;
-      }
-      const dedupedMovies = Array.from(dedupedMoviesMap.values());
-
-      if (dedupedMovies.length > 0) {
-        cache.set(cacheKey, dedupedMovies);
-        return res.json(dedupedMovies);
+      if (formattedMovies.length > 0) {
+        cache.set(cacheKey, formattedMovies);
+        return res.json(formattedMovies);
       } else {
         return res.status(404).json({ error: "No movies found for this city" });
       }
@@ -150,6 +137,14 @@ async function startServer() {
       date.setDate(date.getDate() + 1); // Tomorrow
       const formattedDate = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ', 7:30 PM';
       
+      // Generate a consistent price based on the movie ID
+      let hash = 0;
+      const idStr = movie.id.toString();
+      for (let i = 0; i < idStr.length; i++) {
+        hash = idStr.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      const price = 250 + (Math.abs(hash) % 3) * 50;
+
       const formattedMovie = {
         id: `paytm-${movie.id}`,
         title: movie.name || movie.label,
@@ -157,7 +152,7 @@ async function startServer() {
         imageUrl: movie.appImgPath || movie.imgPath || 'https://picsum.photos/seed/movie/800/1200',
         date: formattedDate,
         location: 'Multiple Theatres',
-        price: 350,
+        price: price,
         rating: movie.rnr?.hasUReview ? 4.5 : 4.0,
         genre: movie.grn || ['Movie'],
         language: movie.lang || 'Hindi',
@@ -826,18 +821,202 @@ async function startServer() {
     res.json({ success: true, message: "Booking confirmed!" });
   });
 
-  // Production: Serve static files from dist
-  if (process.env.NODE_ENV === "production") {
-    const path = await import("path");
-    app.use(express.static(path.resolve("dist")));
+  // --- UGC Service (Instagram Cashback Engine) ---
+
+  // Submit a new claim
+  app.post("/api/ugc/claims", async (req, res) => {
+    const { userId, orderId, instagramHandle, contentType, postUrl } = req.body;
     
-    // Handle SPA routing - send index.html for any other requests not handled by API
-    app.get("*", (req, res) => {
-      res.sendFile(path.resolve("dist", "index.html"));
-    });
+    if (!userId || !orderId || !contentType) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const claimId = `claim_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const cashbackAmount = contentType === 'reel' ? 150 : contentType === 'story' ? 50 : 100;
+
+    const claim = {
+      id: claimId,
+      userId,
+      orderId,
+      instagramHandle: instagramHandle?.replace('@', ''),
+      contentType,
+      postUrl,
+      status: 'pending',
+      cashbackAmount,
+      createdAt: new Date().toISOString()
+    };
+
+    ugcDb.claims.set(claimId, claim);
+    
+    // Track handle for fraud prevention
+    if (claim.instagramHandle) {
+      const handleData = ugcDb.handles.get(claim.instagramHandle) || { claims: [] };
+      handleData.claims.push(claimId);
+      ugcDb.handles.set(claim.instagramHandle, handleData);
+    }
+
+    // Emit Kafka event
+    kafka.emit('ugc.claim.submitted', claim);
+
+    // If it's a URL-based claim (Feed/Reel), trigger verification immediately
+    if (postUrl) {
+      setTimeout(() => verifyPostUrl(claimId, postUrl), 1000);
+    }
+
+    res.json({ success: true, claimId, message: "Claim submitted successfully" });
+  });
+
+  // Get claims for a user
+  app.get("/api/ugc/users/:userId/claims", (req, res) => {
+    const userId = req.params.userId;
+    const claims = Array.from(ugcDb.claims.values()).filter(c => c.userId === userId);
+    res.json(claims);
+  });
+
+  // Get claim status
+  app.get("/api/ugc/claims/:orderId", (req, res) => {
+    const orderId = req.params.orderId;
+    const claims = Array.from(ugcDb.claims.values()).filter(c => c.orderId === orderId);
+    
+    if (claims.length === 0) {
+      return res.json({ status: 'eligible' });
+    }
+    
+    // Return the most recent claim
+    const latestClaim = claims.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+    res.json(latestClaim);
+  });
+
+  // Instagram Webhook Receiver
+  app.post("/api/ugc/webhook/instagram", (req, res) => {
+    const event = req.body;
+    ugcDb.webhooks.push({ timestamp: new Date(), event });
+    
+    // In a real app, verify the webhook signature here
+    
+    kafka.emit('ugc.webhook.received', event);
+    
+    // Process mentions
+    if (event.entry) {
+      event.entry.forEach((entry: any) => {
+        if (entry.changes) {
+          entry.changes.forEach((change: any) => {
+            if (change.field === 'mentions') {
+              const mediaId = change.value.media_id;
+              // In a real app, we would fetch the media details using the Graph API
+              // and then run AI vision verification on it.
+              console.log(`Received mention in media: ${mediaId}`);
+            }
+          });
+        }
+      });
+    }
+
+    res.status(200).send('EVENT_RECEIVED');
+  });
+
+  // Webhook verification (GET)
+  app.get("/api/ugc/webhook/instagram", (req, res) => {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+
+    if (mode && token) {
+      if (mode === 'subscribe' && token === 'vibepass_webhook_secret') {
+        console.log('WEBHOOK_VERIFIED');
+        res.status(200).send(challenge);
+      } else {
+        res.sendStatus(403);
+      }
+    }
+  });
+
+  // Admin: Get all claims
+  app.get("/api/ugc/admin/claims", (req, res) => {
+    const claims = Array.from(ugcDb.claims.values()).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    res.json(claims);
+  });
+
+  // Admin: Override claim status
+  app.post("/api/ugc/admin/claims/:id/override", (req, res) => {
+    const claimId = req.params.id;
+    const { status, reason } = req.body;
+    
+    const claim = ugcDb.claims.get(claimId);
+    if (!claim) {
+      return res.status(404).json({ error: "Claim not found" });
+    }
+
+    claim.status = status;
+    if (reason) claim.rejectionReason = reason;
+    
+    ugcDb.claims.set(claimId, claim);
+
+    if (status === 'approved') {
+      kafka.emit('wallet.credit.requested', {
+        userId: claim.userId,
+        amount: claim.cashbackAmount,
+        reason: 'Instagram Cashback',
+        referenceId: claimId
+      });
+    }
+
+    res.json({ success: true, claim });
+  });
+
+  // Mock Verification Logic
+  async function verifyPostUrl(claimId: string, url: string) {
+    const claim = ugcDb.claims.get(claimId);
+    if (!claim) return;
+
+    claim.status = 'verifying';
+    ugcDb.claims.set(claimId, claim);
+
+    try {
+      // 1. Fetch oEmbed data to verify it's a real post
+      // In a real app, use the actual Instagram oEmbed API
+      // const oembedRes = await axios.get(`https://graph.facebook.com/v18.0/instagram_oembed?url=${url}&access_token=...`);
+      
+      // 2. Simulate AI Vision Verification
+      // In a real app, we would download the image/video frame and send to Gemini
+      /*
+      const response = await ai.models.generateContent({
+        model: "gemini-3.1-pro-preview",
+        contents: [
+          { inlineData: { data: base64Image, mimeType: "image/jpeg" } },
+          { text: "Analyze this image. Does it contain cinema-related visuals (tickets, popcorn, screen)? Does it contain explicit content? Does it contain competitor branding (BookMyShow, PVR)? Reply in JSON format: { contains_cinema: boolean, contains_explicit: boolean, contains_competitor: boolean, confidence: number }" }
+        ]
+      });
+      */
+
+      // Mocking the result for now
+      const isApproved = Math.random() > 0.2; // 80% approval rate
+
+      if (isApproved) {
+        claim.status = 'approved';
+        kafka.emit('ugc.verification.passed', claim);
+        kafka.emit('wallet.credit.requested', {
+          userId: claim.userId,
+          amount: claim.cashbackAmount,
+          reason: 'Instagram Cashback',
+          referenceId: claimId
+        });
+      } else {
+        claim.status = 'rejected';
+        claim.rejectionReason = 'Could not verify cinema-related content in the post.';
+        kafka.emit('ugc.verification.failed', claim);
+      }
+      
+      ugcDb.claims.set(claimId, claim);
+    } catch (error) {
+      console.error(`Verification failed for claim ${claimId}:`, error);
+      claim.status = 'pending'; // Revert to pending for manual review
+      ugcDb.claims.set(claimId, claim);
+    }
   }
-  // Development: Vite middleware
-  else {
+
+  // Vite middleware for development
+  if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -845,7 +1024,7 @@ async function startServer() {
     app.use(vite.middlewares);
   }
 
-  app.listen(Number(PORT), "0.0.0.0", () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }

@@ -15,9 +15,14 @@ export default function VenueMap({ location }: VenueMapProps) {
       className="block relative w-full h-48 rounded-2xl overflow-hidden bg-zinc-900 border border-white/10 mt-4 group cursor-pointer"
     >
       <img
-        src={`https://picsum.photos/seed/${location.replace(/[^a-zA-Z0-9]/g, '')}/800/400?grayscale&blur=2`}
+        src={`https://api.maptiler.com/maps/basic-v2/static/auto/800x400.png?key=get_your_own_OpIi9ZULNHzrESv6T2vL&path=fill:none|color:red|weight:5|${encodeURIComponent(location)}`}
         alt="Map"
         className="w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity duration-500"
+        onError={(e) => {
+          // Fallback to a generic map pattern if the API fails
+          e.currentTarget.src = "https://www.transparenttextures.com/patterns/cubes.png";
+          e.currentTarget.className = "w-full h-full object-cover opacity-20 group-hover:opacity-30 transition-opacity duration-500 bg-zinc-800";
+        }}
         referrerPolicy="no-referrer"
       />
       <div className="absolute inset-0 flex items-center justify-center">

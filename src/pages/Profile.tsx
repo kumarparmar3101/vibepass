@@ -3,24 +3,68 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 export default function Profile() {
   const navigate = useNavigate();
-  const { user, logout } = useStore();
+  const { user, logout, setFirebaseUser } = useStore();
   const [toast, setToast] = useState<string | null>(null);
+  const [stats, setStats] = useState({ events: 0, movies: 0 });
 
   useEffect(() => {
-    // We allow guests here to see the "Log In" button
-  }, [user]);
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    const fetchProfileData = async () => {
+      try {
+        // Fetch latest user data
+        const userDoc = await getDoc(doc(db, 'users', user.id));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          setFirebaseUser({
+            ...user,
+            name: data.name || user.name,
+            avatarUrl: data.avatarUrl || user.avatarUrl,
+            memberTier: data.tier || 'Standard',
+            points: data.loyaltyPoints || 0,
+            role: data.role || 'user'
+          });
+        }
+
+        // Fetch orders to calculate stats
+        const ordersQuery = query(collection(db, 'orders'), where('userId', '==', user.id));
+        const ordersSnap = await getDocs(ordersQuery);
+        
+        // Fetch watchlist count
+        const watchlistQuery = query(collection(db, 'watchlist'), where('userId', '==', user.id));
+        const watchlistSnap = await getDocs(watchlistQuery);
+        
+        const totalOrders = ordersSnap.docs.length;
+        const totalWatchlist = watchlistSnap.docs.length;
+        
+        setStats({
+          events: totalOrders, // Simplified for demo
+          movies: totalWatchlist // Simplified for demo
+        });
+
+      } catch (error) {
+        console.error("Error fetching profile data:", error);
+      }
+    };
+
+    fetchProfileData();
+  }, [user?.id, navigate]);
 
   const menuItems = [
-    { icon: UserIcon, label: 'Edit Profile', action: () => showToast('Edit Profile coming soon') },
-    { icon: PlusCircle, label: 'Organizer Dashboard', action: () => navigate('/organizer') },
-    { icon: CreditCard, label: 'Payment Methods', action: () => showToast('Payment Methods coming soon') },
-    { icon: Settings, label: 'Settings', action: () => showToast('Settings coming soon') },
-    { icon: HelpCircle, label: 'Help & Support', action: () => showToast('Help & Support coming soon') },
+    { icon: UserIcon, label: 'Edit Profile', action: () => navigate('/profile/edit') },
+    ...(user?.role === 'organizer' || user?.role === 'admin' ? [{ icon: PlusCircle, label: 'Organizer Dashboard', action: () => navigate('/organizer') }] : []),
+    { icon: CreditCard, label: 'Payment Methods', action: () => navigate('/profile/payments') },
+    { icon: Settings, label: 'Settings', action: () => navigate('/profile/settings') },
+    { icon: HelpCircle, label: 'Help & Support', action: () => navigate('/profile/support') },
   ];
 
   const handleLogout = async () => {
@@ -39,22 +83,7 @@ export default function Profile() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-vibe-bg text-zinc-50 flex flex-col items-center justify-center p-4">
-        <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold mb-2">Guest User</h1>
-            <p className="text-zinc-400">Log in to manage your tickets and profile.</p>
-        </div>
-        <button
-            onClick={() => navigate('/login')}
-            className="bg-vibe-primary text-black font-bold py-3 px-8 rounded-xl hover:bg-vibe-primary-hover transition-colors"
-        >
-            Log In / Sign Up
-        </button>
-      </div>
-    );
-  }
+  if (!user) return null;
 
   return (
     <motion.div
@@ -73,7 +102,7 @@ export default function Profile() {
         {/* User Info */}
         <div className="flex items-center space-x-4">
           <button 
-            onClick={() => showToast('Profile picture update coming soon')}
+            onClick={() => navigate('/profile/edit')}
             className="w-20 h-20 rounded-full bg-vibe-card overflow-hidden border-2 border-vibe-primary relative group"
           >
             <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
@@ -84,9 +113,17 @@ export default function Profile() {
           <div>
             <h2 className="text-xl font-bold text-white mb-1">{user.name}</h2>
             <p className="text-sm text-zinc-400">{user.email}</p>
-            <div className="flex items-center space-x-1 mt-2 text-yellow-400 bg-yellow-400/10 px-2 py-1 rounded-full w-max">
-              <Star className="w-3 h-3 fill-yellow-400" />
-              <span className="text-xs font-bold">{user.memberTier} Member</span>
+            <div className={`flex items-center space-x-1 mt-2 px-2 py-1 rounded-full w-max ${
+              user.memberTier === 'VIP' ? 'text-purple-400 bg-purple-400/10' :
+              user.memberTier === 'Premium' ? 'text-yellow-400 bg-yellow-400/10' :
+              'text-zinc-400 bg-zinc-400/10'
+            }`}>
+              <Star className={`w-3 h-3 ${
+                user.memberTier === 'VIP' ? 'fill-purple-400' :
+                user.memberTier === 'Premium' ? 'fill-yellow-400' :
+                'fill-zinc-400'
+              }`} />
+              <span className="text-xs font-bold">{user.memberTier || 'Standard'} Member</span>
             </div>
           </div>
         </div>
@@ -94,15 +131,15 @@ export default function Profile() {
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4">
           <button onClick={() => navigate('/wallet')} className="bg-vibe-card rounded-2xl p-4 text-center border border-white/5 hover:bg-zinc-800 transition-colors">
-            <p className="text-2xl font-black text-white mb-1">12</p>
+            <p className="text-2xl font-black text-white mb-1">{stats.events}</p>
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Events</p>
           </button>
-          <button onClick={() => navigate('/stream')} className="bg-vibe-card rounded-2xl p-4 text-center border border-white/5 hover:bg-zinc-800 transition-colors">
-            <p className="text-2xl font-black text-white mb-1">4</p>
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Movies</p>
+          <button onClick={() => navigate('/profile/watchlist')} className="bg-vibe-card rounded-2xl p-4 text-center border border-white/5 hover:bg-zinc-800 transition-colors">
+            <p className="text-2xl font-black text-white mb-1">{stats.movies}</p>
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Watchlist</p>
           </button>
-          <button onClick={() => navigate('/wallet')} className="bg-vibe-card rounded-2xl p-4 text-center border border-white/5 hover:bg-zinc-800 transition-colors">
-            <p className="text-2xl font-black text-white mb-1">{user.points}</p>
+          <button onClick={() => navigate('/profile/rewards')} className="bg-vibe-card rounded-2xl p-4 text-center border border-white/5 hover:bg-zinc-800 transition-colors">
+            <p className="text-2xl font-black text-white mb-1">{user.points || 0}</p>
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Points</p>
           </button>
         </div>

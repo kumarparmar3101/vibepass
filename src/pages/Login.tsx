@@ -20,10 +20,9 @@ export default function Login() {
         await signInWithPopup(auth, appleProvider);
       }
       // Note: App.tsx's onAuthStateChanged will handle updating the store and redirecting
-    } catch (error: any) {
+    } catch (error) {
       console.error("Login error:", error);
-      // Show the actual error message to help debugging
-      alert(`Failed to login: ${error.message || 'Unknown error'}\n\nCode: ${error.code}`);
+      alert("Failed to login. Please try again.");
       setIsLoading(false);
     }
   };
